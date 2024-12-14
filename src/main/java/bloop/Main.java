@@ -3,6 +3,8 @@ package bloop;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.security.Security;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.util.io.pem.PemObject;
@@ -63,8 +65,15 @@ public class Main {
         @CommandLine.Parameters(index = "1", description = "The handle of the user.")
         private String handle;
 
+        private boolean validateHandle(String handle) {
+            Pattern pattern = Pattern.compile("/^did:[a-z]+:[a-zA-Z0-9._:%-]*[a-zA-Z0-9._-]$/");
+            Matcher matcher = pattern.matcher(handle);
+            return matcher.find();
+        }
+
         @Override
         public void run() {
+            System.out.println(this.validateHandle(this.handle));
             System.out.printf("User created with DID: %s and Handle: %s%n", did, handle);
         }
     }
