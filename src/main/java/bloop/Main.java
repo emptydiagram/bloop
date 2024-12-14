@@ -82,7 +82,7 @@ public class Main {
             name = "util",
             mixinStandardHelpOptions = true,
             description = "Misc. utilities",
-            subcommands = {KeyGenCommand.class}
+            subcommands = { KeyGenCommand.class, DisplayPubKeyCommand.class }
     )
     static class UtilCommand {
     }
@@ -90,7 +90,7 @@ public class Main {
     @CommandLine.Command(
             name = "keygen",
             mixinStandardHelpOptions = true,
-            description = "Create a new user with DID and handle."
+            description = "Generate private key and output in PEM format"
     )
     static class KeyGenCommand implements Runnable {
 
@@ -119,9 +119,23 @@ public class Main {
                 System.out.printf("Unrecognized key type: %s (Should be 'k256' or 'p256')\n", keyType);
                 return;
             }
-            var keyPair = DIDHelper.generateKeyPair(curveName);
-            var pemString = DIDHelper.convertKeyToPem(keyPair.getPrivate(), "PRIVATE KEY");
+            var keyPair = DidHelper.generateKeyPair(curveName);
+            var pemString = DidHelper.convertKeyToPem(keyPair.getPrivate(), "PRIVATE KEY");
             System.out.println(pemString);
         }
     }
+
+    @CommandLine.Command(
+        name = "display-pubkey",
+        mixinStandardHelpOptions = true,
+        description = "Display public key PEM from private key PEM"
+    )
+    static class DisplayPubKeyCommand implements Runnable {
+
+        @Override
+        public void run() {
+        }
+
+    }
+
 }
