@@ -1,13 +1,16 @@
 package bloop;
 
+import java.io.IOException;
+import java.io.StringWriter;
 import java.security.Security;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.util.io.pem.PemObject;
+import org.bouncycastle.util.io.pem.PemWriter;
 import picocli.CommandLine;
 
 public class Main {
     public static void main(String[] args) {
-        System.out.println("Hello World!");
         int exitCode = new CommandLine(new App())
             .addSubcommand("init", new InitCommand())
             .addSubcommand("user", new UserCommand())
@@ -84,8 +87,8 @@ public class Main {
 
         @CommandLine.Option(
             names = {"-k", "--key-type"},
-            description = "Key type. 'k256' or 'p256'. Defaults to 'p256'.",
-            defaultValue = "p256"
+            description = "Key type. 'k256' or 'p256'. Defaults to 'k256'.",
+            defaultValue = "k256"
         )
         private String keyType;
 
@@ -98,7 +101,6 @@ public class Main {
             Security.addProvider(new BouncyCastleProvider());
 
             this.keyType = this.keyType.toLowerCase();
-            System.out.println(this.keyType);
             String curveName = null;
             if(this.keyType.equals("k256")) {
                 curveName = KeyGenCommand.KEY_TYPE_K256;
@@ -106,10 +108,22 @@ public class Main {
                 curveName = KeyGenCommand.KEY_TYPE_P256;
             } else {
                 System.out.printf("Unrecognized key type: %s (Should be 'k256' or 'p256')\n", keyType);
+                return;
             }
-            System.out.printf("Creating key pair of type %s", keyType);
             var keyPair = ECKeyGenerator.generateKeyPair(curveName);
-            System.out.println(keyPair);
+            var privateKey = keyPair.getPrivate();
+            var sw = new StringWriter();
+            try {
+                try(var pemWriter = new PemWriter(sw)) {
+                    var pemObject = new PemObject("PRIVATE KEY", privateKey.getEncoded());
+                    pemWriter.writeObject(pemObject);
+                }
+            } catch(IOException e) {
+                throw new RuntimeException(e);
+            }
+            var pemString = sw.toString();
+
+            System.out.println(pemString);
         }
     }
 }
