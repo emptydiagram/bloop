@@ -119,19 +119,8 @@ public class Main {
                 System.out.printf("Unrecognized key type: %s (Should be 'k256' or 'p256')\n", keyType);
                 return;
             }
-            var keyPair = ECKeyGenerator.generateKeyPair(curveName);
-            var privateKey = keyPair.getPrivate();
-            var sw = new StringWriter();
-            try {
-                try(var pemWriter = new PemWriter(sw)) {
-                    var pemObject = new PemObject("PRIVATE KEY", privateKey.getEncoded());
-                    pemWriter.writeObject(pemObject);
-                }
-            } catch(IOException e) {
-                throw new RuntimeException(e);
-            }
-            var pemString = sw.toString();
-
+            var keyPair = DIDHelper.generateKeyPair(curveName);
+            var pemString = DIDHelper.convertKeyToPem(keyPair.getPrivate(), "PRIVATE KEY");
             System.out.println(pemString);
         }
     }
