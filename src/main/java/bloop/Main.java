@@ -1,6 +1,8 @@
 package bloop;
 
+import java.security.Security;
 
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import picocli.CommandLine;
 
 public class Main {
@@ -9,6 +11,7 @@ public class Main {
         int exitCode = new CommandLine(new App())
             .addSubcommand("init", new InitCommand())
             .addSubcommand("user", new UserCommand())
+            .addSubcommand("util", new UtilCommand())
             .execute(args);
         System.exit(exitCode);
     }
@@ -24,7 +27,7 @@ public class Main {
     @CommandLine.Command(
                 name = "init",
                 mixinStandardHelpOptions = true,
-                description = "Initialize the application."
+                description = "Initialize the database."
         )
     static class InitCommand implements Runnable {
 
@@ -60,6 +63,53 @@ public class Main {
         @Override
         public void run() {
             System.out.printf("User created with DID: %s and Handle: %s%n", did, handle);
+        }
+    }
+
+    @CommandLine.Command(
+            name = "util",
+            mixinStandardHelpOptions = true,
+            description = "Misc. utilities",
+            subcommands = {KeyGenCommand.class}
+    )
+    static class UtilCommand {
+    }
+
+    @CommandLine.Command(
+            name = "keygen",
+            mixinStandardHelpOptions = true,
+            description = "Create a new user with DID and handle."
+    )
+    static class KeyGenCommand implements Runnable {
+
+        @CommandLine.Option(
+            names = {"-k", "--key-type"},
+            description = "Key type. 'k256' or 'p256'. Defaults to 'p256'.",
+            defaultValue = "p256"
+        )
+        private String keyType;
+
+        private static final String KEY_TYPE_K256 = "secp256k1";
+        private static final String KEY_TYPE_P256 = "prime256v1";
+
+
+        @Override
+        public void run() {
+            Security.addProvider(new BouncyCastleProvider());
+
+            this.keyType = this.keyType.toLowerCase();
+            System.out.println(this.keyType);
+            String curveName = null;
+            if(this.keyType.equals("k256")) {
+                curveName = KeyGenCommand.KEY_TYPE_K256;
+            } else if (this.keyType.equals("p256")) {
+                curveName = KeyGenCommand.KEY_TYPE_P256;
+            } else {
+                System.out.printf("Unrecognized key type: %s (Should be 'k256' or 'p256')\n", keyType);
+            }
+            System.out.printf("Creating key pair of type %s", keyType);
+            var keyPair = ECKeyGenerator.generateKeyPair(curveName);
+            System.out.println(keyPair);
         }
     }
 }
