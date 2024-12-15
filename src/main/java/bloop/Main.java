@@ -1,14 +1,12 @@
 package bloop;
 
+import java.nio.file.*;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.security.Security;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.util.io.pem.PemObject;
-import org.bouncycastle.util.io.pem.PemWriter;
 import picocli.CommandLine;
 
 public class Main {
@@ -101,6 +99,8 @@ public class Main {
         )
         private String keyType;
 
+        @CommandLine.Option(names = "--display-pubkey") boolean displayPubkey;
+
         private static final String KEY_TYPE_K256 = "secp256k1";
         private static final String KEY_TYPE_P256 = "prime256v1";
 
@@ -120,8 +120,10 @@ public class Main {
                 return;
             }
             var keyPair = DidHelper.generateKeyPair(curveName);
-            var pemString = DidHelper.convertKeyToPem(keyPair.getPrivate(), "PRIVATE KEY");
-            System.out.println(pemString);
+            System.out.println(DidHelper.convertKeyToPem(keyPair.getPrivate(), "PRIVATE KEY"));
+            if(this.displayPubkey) {
+                System.out.println(DidHelper.convertKeyToPem(keyPair.getPublic(), "PUBLIC KEY"));
+            }
         }
     }
 
@@ -132,8 +134,20 @@ public class Main {
     )
     static class DisplayPubKeyCommand implements Runnable {
 
+        @CommandLine.Parameters(index = "0", description = "Path to PEM file of private key.")
+        private String pemPath;
+
         @Override
         public void run() {
+            Security.addProvider(new BouncyCastleProvider());
+            Path filePath = Paths.get(this.pemPath);
+            try {
+                String pemString = Files.readString(filePath);
+                var publicKey = DidHelper.getPublicKeyFromPem(pemString);
+                System.out.println(DidHelper.convertKeyToPem(publicKey, "PUBLIC KEY"));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
 
     }

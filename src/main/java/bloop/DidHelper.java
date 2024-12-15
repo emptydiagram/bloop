@@ -12,6 +12,14 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.List;
 import java.util.Map;
 
+import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.ASN1Primitive;
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
+import org.bouncycastle.asn1.sec.SECNamedCurves;
+import org.bouncycastle.asn1.x9.X962Parameters;
+import org.bouncycastle.jce.ECNamedCurveTable;
+import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
+import org.bouncycastle.math.ec.ECPoint;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
 import org.bouncycastle.util.io.pem.PemWriter;
@@ -35,6 +43,9 @@ record PlcOperationCreateUpdate(
 }
 
 public class DidHelper {
+    public static final String KEY_TYPE_K256 = "secp256k1";
+    public static final String KEY_TYPE_P256 = "prime256v1";
+
     public static KeyPair generateKeyPair(String curveName) {
         try {
             KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("EC", "BC");
@@ -61,13 +72,20 @@ public class DidHelper {
 
     public static PublicKey getPublicKeyFromPem(String pemString) {
         byte[] pemContent;
-        try {
-            try(PemReader pemReader = new PemReader(new StringReader(pemString))) {
-                pemContent = pemReader.readPemObject().getContent();
+        try (PemReader pemReader = new PemReader(new StringReader(pemString))) {
+            PemObject pemObject = pemReader.readPemObject();
+
+            if (pemObject == null ||
+                (!"PRIVATE KEY".equalsIgnoreCase(pemObject.getType()) &&
+                 !"EC PRIVATE KEY".equalsIgnoreCase(pemObject.getType()))) {
+                throw new IllegalArgumentException("Invalid PEM format: Expected a PRIVATE KEY");
             }
-        } catch(IOException e) {
-            throw new RuntimeException(e);
+
+            pemContent = pemObject.getContent();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read PEM content", e);
         }
+
 
         try {
             PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(pemContent);
@@ -78,13 +96,32 @@ public class DidHelper {
                 throw new IllegalArgumentException("Not an EC private key");
             }
 
+            PrivateKeyInfo privateKeyInfo = PrivateKeyInfo.getInstance(ASN1Primitive.fromByteArray(pemContent));
+            X962Parameters params = X962Parameters.getInstance(privateKeyInfo.getPrivateKeyAlgorithm().getParameters());
+            ASN1ObjectIdentifier curveOid = ASN1ObjectIdentifier.getInstance(params.getParameters());
+
+            var curveName = SECNamedCurves.getName(curveOid);
+
+            if (!curveName.equals(DidHelper.KEY_TYPE_K256) && !curveName.equals(DidHelper.KEY_TYPE_P256)) {
+                throw new IllegalArgumentException("Unsupported key type: " + curveName);
+            }
+
+            ECNamedCurveParameterSpec bcSpec = ECNamedCurveTable.getParameterSpec(curveName);
+
+            java.math.BigInteger d = privateKey.getS();
+            ECPoint Q = bcSpec.getG().multiply(d).normalize();
+            java.security.spec.ECPoint w = new java.security.spec.ECPoint(
+                    Q.getAffineXCoord().toBigInteger(),
+                    Q.getAffineYCoord().toBigInteger()
+            );
+
             java.security.spec.ECParameterSpec ecParams = privateKey.getParams();
-            java.math.BigInteger s = privateKey.getS();
-            java.security.spec.ECPoint publicPoint = ecParams.getGenerator().multiply(s);
-            ECPublicKeySpec publicKeySpec = new ECPublicKeySpec(publicPoint, ecParams);
+            ECPublicKeySpec publicKeySpec = new ECPublicKeySpec(w, ecParams);
+
             return keyFactory.generatePublic(publicKeySpec);
 
-        } catch (NoSuchAlgorithmException | NoSuchProviderException | InvalidKeySpecException e) {
+
+        } catch (NoSuchAlgorithmException | NoSuchProviderException | InvalidKeySpecException | IOException e) {
             throw new RuntimeException(e);
         }
     }
